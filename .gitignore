@@ -3,3 +3,4 @@ README-INTERNE.md
 .env
 __pycache__/
 *.pyc
+recordings/
