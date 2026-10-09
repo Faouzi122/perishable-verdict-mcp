@@ -1,0 +1,5 @@
+# Notes de travail — ne partent jamais dans le dépôt public
+README-INTERNE.md
+.env
+__pycache__/
+*.pyc
