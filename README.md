@@ -36,7 +36,28 @@ That property is structural, not a promise in a prompt.
 python3 src/server.py 8765      # stdlib only, no dependencies
 ```
 
+Then open <http://127.0.0.1:8765/> for the simulated Alexa+ experience.
+
 Streamable HTTP, MCP specification **2025-11-25**.
+
+## A note on the voice
+
+The spoken answers use the browser's own `speechSynthesis` — nothing is
+pre-recorded, and the page shows which voice it picked.
+
+**Available voices depend on the browser.** Measured on a Linux machine with no
+system speech engine installed:
+
+| Browser | English voices |
+|---|---|
+| **Chrome** | **3** (Google UK English Female / Male, Google US English) |
+| Brave | **0** — the page runs, but stays silent |
+
+Chrome supplies neural voices over the network; Brave removes those Google
+services by default. **Use Chrome to hear the demo**, and keep a network
+connection — the voices are fetched, not installed locally. Without a voice the
+page still works and the verdicts are shown on screen; you simply do not hear
+them.
 
 ## Licence
 

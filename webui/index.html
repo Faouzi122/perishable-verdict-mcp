@@ -42,6 +42,7 @@
   <div class="card">
     <div class="spoken" id="spoken">Ask the assistant whether you can commit to the order.</div>
     <div class="meta" id="meta"></div>
+    <div class="meta" id="voice" style="opacity:.65"></div>
   </div>
 
   <div>
@@ -60,13 +61,33 @@
 const MCP = location.origin + "/mcp";
 let lastVerdict = null, timer = null;
 const $ = id => document.getElementById(id);
+window.addEventListener("load", () => showVoice());
+
+// Pick the clearest available English voice, in order of preference.
+// Falls back silently if none is present, so the demo still runs.
+let VOICE = null;
+function pickVoice() {
+  const all = speechSynthesis.getVoices();
+  const wanted = ["Google UK English Female", "Google US English", "Google UK English Male"];
+  for (const name of wanted) { const v = all.find(x => x.name === name); if (v) return v; }
+  return all.find(x => x.lang && x.lang.startsWith("en")) || null;
+}
+if (window.speechSynthesis) {
+  VOICE = pickVoice();
+  speechSynthesis.onvoiceschanged = () => { VOICE = pickVoice(); showVoice(); };
+}
+function showVoice() {
+  const el = $("voice");
+  if (el) el.textContent = VOICE ? `voice: ${VOICE.name}` : "no speech voice available";
+}
 
 function say(text) {
   $("spoken").innerHTML = text;
   if (!window.speechSynthesis) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance($("spoken").textContent);
-  u.rate = 1.02; u.pitch = 1.0;
+  if (VOICE) { u.voice = VOICE; u.lang = VOICE.lang; }
+  u.rate = 0.96; u.pitch = 1.0; u.volume = 1.0;
   $("ring").classList.add("speaking");
   u.onend = () => $("ring").classList.remove("speaking");
   speechSynthesis.speak(u);
