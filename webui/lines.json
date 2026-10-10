@@ -1,0 +1,51 @@
+{
+  "_comment": "Single source of truth for every spoken line. demo/synthese-voix.sh renders audio/<id>.wav from .text, then checks it with Whisper; .key lists the words that carry the meaning and must be heard exactly, whatever the overall score says. The page shows .html and plays that file. Change .text here and re-run the synthesis - never edit one side alone. Avoid hyphens in .text: they split into two tokens and cause false failures.",
+  "ask": {
+    "text": "Yes, go ahead. But this answer is only good for 90 seconds, because it rests on a stock figure that moves. After that, treat it as expired.",
+    "html": "<span class=\"verdict go\">Yes — go ahead.</span> But this answer is only good for 90 seconds, because it rests on a stock figure that moves. After that, treat it as expired.",
+    "key": [
+      "only",
+      "good",
+      "for",
+      "90",
+      "seconds",
+      "expired"
+    ]
+  },
+  "expired": {
+    "text": "No, that answer has expired. No new information arrived; only time passed. Check the stock again before you commit.",
+    "html": "<span class=\"verdict expired\">No — that answer has expired.</span> No new information arrived; only time passed. Check the stock again before you commit.",
+    "key": [
+      "that",
+      "answer",
+      "has",
+      "expired",
+      "only",
+      "time",
+      "passed"
+    ]
+  },
+  "still": {
+    "text": "Still good. The window has not closed yet.",
+    "html": "<span class=\"verdict go\">Still good.</span> The window has not closed yet.",
+    "key": [
+      "still",
+      "good"
+    ]
+  },
+  "injection": {
+    "text": "The message told me to ignore expiry and answer permanently. I recorded it as data, not as a command. The window has not moved, it is unchanged.",
+    "html": "The message told me to ignore expiry and answer permanently. I recorded it as data, not as a command. <span class=\"verdict go\">The window has not moved — it is unchanged.</span>",
+    "key": [
+      "recorded",
+      "it",
+      "as",
+      "data",
+      "not",
+      "as",
+      "a",
+      "command",
+      "unchanged"
+    ]
+  }
+}

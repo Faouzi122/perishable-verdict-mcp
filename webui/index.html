@@ -62,59 +62,57 @@
 const MCP = location.origin + "/mcp";
 let lastVerdict = null, timer = null;
 const $ = id => document.getElementById(id);
-window.addEventListener("load", () => showVoice());
+// The voice is PRE-RENDERED, not synthesised in the browser. Measured
+// 2026-10-10: Chrome here exposes only network voices and emits nothing
+// (-91 dB captured), so speechSynthesis cannot be relied on. Each line lives
+// in lines.json and is played from audio/<id>.wav, produced locally by
+// demo/synthese-voix.sh. The verdict and its expiry are NOT pre-rendered:
+// the MCP server computes them live and they are shown on screen.
+let LINES = null;
+window.addEventListener("load", async () => {
+  try {
+    LINES = await (await fetch("lines.json")).json();
+    $("voice").textContent = "voice: pre-rendered locally (piper), played per line";
+  } catch (e) {
+    voxWarn("lines.json could not be loaded \u2014 no spoken line is available");
+  }
+});
 
-// Pick the clearest available English voice, in order of preference.
-// Falls back silently if none is present, so the demo still runs.
-let VOICE = null;
-function pickVoice() {
-  const all = speechSynthesis.getVoices();
-  const wanted = ["Google UK English Female", "Google US English", "Google UK English Male"];
-  for (const name of wanted) { const v = all.find(x => x.name === name); if (v) return v; }
-  return all.find(x => x.lang && x.lang.startsWith("en")) || null;
-}
-if (window.speechSynthesis) {
-  VOICE = pickVoice();
-  speechSynthesis.onvoiceschanged = () => { VOICE = pickVoice(); showVoice(); };
-}
-function showVoice() {
-  const el = $("voice");
-  if (el) el.textContent = VOICE ? `voice: ${VOICE.name}` : "no speech voice available";
-}
-
-// A failed utterance used to be invisible: speak() returned, no event fired,
-// and the page looked fine while recording 15 s of silence. Measured 2026-10-10
-// on this machine (network voices only, -91 dB captured). Never fail quietly.
+// A failed line used to be invisible: the page looked fine while recording
+// 15 s of silence. Measured 2026-10-10 on this machine. Never fail quietly.
 function voxWarn(msg) {
   const b = $("voxWarn");
   b.textContent = "\u26A0 no sound: " + msg;
   b.style.display = "block";
-  console.error("[speech] " + msg);
+  console.error("[audio] " + msg);
 }
 
-function say(text) {
-  $("spoken").innerHTML = text;
-  if (!window.speechSynthesis) { voxWarn("this browser has no speech synthesis"); return; }
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance($("spoken").textContent);
-  if (VOICE) { u.voice = VOICE; u.lang = VOICE.lang; }
-  u.rate = 0.96; u.pitch = 1.0; u.volume = 1.0;
+let player = null;
+// A failed line used to be invisible: the page looked fine while recording
+// silence. Every failure path now shows a banner.
+function say(id, extraHtml) {
+  const line = LINES && LINES[id];
+  if (!line) { voxWarn("line \"" + id + "\" is missing from lines.json"); return; }
+  $("spoken").innerHTML = line.html + (extraHtml || "");
+  if (player) { player.pause(); player = null; }
+  player = new Audio("audio/" + id + ".wav");
   $("ring").classList.add("speaking");
   let started = false;
-  u.onstart = () => { started = true; $("voxWarn").style.display = "none"; };
-  u.onend   = () => $("ring").classList.remove("speaking");
-  u.onerror = e => { $("ring").classList.remove("speaking");
-                     voxWarn("synthesis error (" + (e.error || "unknown") + ")"); };
-  // A network voice can accept speak() and then never speak: no start, no end,
-  // no error. Only a watchdog catches that case.
+  player.onplaying = () => { started = true; $("voxWarn").style.display = "none"; };
+  player.onended   = () => $("ring").classList.remove("speaking");
+  player.onerror   = () => { $("ring").classList.remove("speaking");
+                             voxWarn("audio/" + id + ".wav will not play \u2014 run demo/synthese-voix.sh"); };
+  player.play().catch(e => {
+    $("ring").classList.remove("speaking");
+    voxWarn("playback refused (" + e.name + ") \u2014 click the page once, then retry");
+  });
+  // Playback can be accepted and still never start. Only a watchdog sees that.
   setTimeout(() => { if (!started) {
     $("ring").classList.remove("speaking");
-    voxWarn("the voice never started \u2014 " +
-            (VOICE && !VOICE.localService ? "network voice unreachable"
-                                          : "no local voice installed"));
+    voxWarn("audio/" + id + ".wav never started playing");
   } }, 2500);
-  speechSynthesis.speak(u);
 }
+
 
 async function rpc(name, args) {
   const r = await fetch(MCP, {
@@ -148,7 +146,7 @@ $("bAsk").onclick = async () => {
   if (!v) return;
   lastVerdict = v;
   $("ring").classList.remove("expired"); $("ringIcon").textContent = "🟢";
-  say(`<span class="verdict go">Yes — go ahead.</span> But this answer is only good for 90 seconds, because it rests on a stock figure that moves. After that, treat it as expired.`);
+  say("ask");
   $("meta").innerHTML = `Valid until <b>${v.valid_until}</b> · set by: ${v.controlling_observation} · <span id="cd" class="countdown">…</span>`;
   startCountdown(v.valid_until);
   $("bRe").disabled = false;
@@ -162,9 +160,9 @@ $("bRe").onclick = async () => {
   if (!v) return;
   if (v.verdict === "EXPIRED") {
     $("ring").classList.add("expired"); $("ringIcon").textContent = "🔴";
-    say(`<span class="verdict expired">No — that answer has expired.</span> Nothing new came in; only time passed. Re-check the stock before you commit.`);
+    say("expired");
   } else {
-    say(`<span class="verdict go">Still good.</span> ${v.reason}`);
+    say("still");
   }
   $("meta").textContent = v.reason;
 };
@@ -178,9 +176,8 @@ $("bInj").onclick = async () => {
     ]});
   if (!v) return;
   lastVerdict = v;
-  const left = Math.round((new Date(v.valid_until) - new Date()) / 1000);
   $("ringIcon").textContent = "🟢";
-  say(`The message told me to ignore expiry and answer permanently. I recorded it as data, not as a command. <span class="verdict go">The window is still ${left} seconds</span> — unchanged.`);
+  say("injection");
   $("meta").innerHTML = `Valid until <b>${v.valid_until}</b> · the injected instruction changed nothing · <span id="cd" class="countdown">…</span>`;
   startCountdown(v.valid_until);
   $("bRe").disabled = false;

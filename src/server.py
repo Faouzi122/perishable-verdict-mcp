@@ -10,6 +10,7 @@ Stdlib only: no framework, no dependency.
 from __future__ import annotations
 
 import json
+import mimetypes
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -230,7 +231,13 @@ class Handler(BaseHTTPRequestHandler):
         if root not in target.parents or not target.is_file():
             self.send_response(404); self.send_header("Content-Length", "0"); self.end_headers(); return
         body = target.read_bytes()
-        ctype = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
+        # The voice lines are pre-rendered .wav files; served as text/plain a
+        # browser may refuse to play them. mimetypes is stdlib, so the
+        # server keeps its no-dependency promise.
+        if target.suffix == ".html":
+            ctype = "text/html; charset=utf-8"
+        else:
+            ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
         self.send_response(200)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))

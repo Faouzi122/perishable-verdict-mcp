@@ -36,28 +36,75 @@ That property is structural, not a promise in a prompt.
 python3 src/server.py 8765      # stdlib only, no dependencies
 ```
 
+The server itself has **no dependencies** — Python standard library only. The
+pre-rendered audio is committed, so the demo runs as cloned. Regenerating it is
+the only step that needs extra tools (piper and faster-whisper, both local);
+see below.
+
+```bash
+```
+
 Then open <http://127.0.0.1:8765/> for the simulated Alexa+ experience.
 
 Streamable HTTP, MCP specification **2025-11-25**.
 
-## A note on the voice
+## What is live, and what is pre-rendered
 
-The spoken answers use the browser's own `speechSynthesis` — nothing is
-pre-recorded, and the page shows which voice it picked.
+These are two different things, and the demo keeps them apart on purpose.
 
-**Available voices depend on the browser.** Measured on a Linux machine with no
-system speech engine installed:
+**Computed live by the MCP server, on every click:** the verdict, the
+controlling observation, the expiry timestamp, and the countdown you see on
+screen. Nothing about the decision is canned. Click the same button twice and
+the expiry moves, because it is derived from the clock at the moment of the
+call.
 
-| Browser | English voices |
+**Pre-rendered:** the spoken audio. Each line lives in
+[`webui/lines.json`](webui/lines.json) and is synthesised once, sentence by
+sentence, into `webui/audio/<id>.wav` by
+[`demo/synthese-voix.sh`](demo/synthese-voix.sh). The page plays those files
+through an `<audio>` element.
+
+```bash
+bash demo/synthese-voix.sh
+```
+
+Synthesis runs **locally** — [piper](https://github.com/rhasspy/piper) with the
+`en_US-lessac-medium` voice, on CPU, no network and no cloud TTS. The script
+then transcribes every file it produced with `faster-whisper` and refuses to
+finish unless each line clears a word-recall threshold **and** every word
+flagged as load-bearing in `lines.json` is heard exactly. A green score is not
+enough on its own: an earlier engine scored 87% while saying "I recorded it as
+*beta*, not as a command", which destroys the very point being demonstrated.
+
+Because the audio is fixed, no spoken line quotes a number that is computed at
+runtime. The remaining-seconds figure appears on screen only, where it is
+always the server's own value.
+
+### Why not the browser's own speech synthesis
+
+The page used to call `speechSynthesis`. On the Linux machine this demo was
+built on, that path does not work, and it fails *silently*:
+
+| | |
 |---|---|
-| **Chrome** | **3** (Google UK English Female / Male, Google US English) |
-| Brave | **0** — the page runs, but stays silent |
+| English voices Chrome advertises | 3 |
+| of which usable offline (`localService`) | **0** |
+| events fired by `speak()` | none — no `start`, no `end`, no `error` |
+| audio actually captured | **−91.0 dB** (digital silence) |
+| a reference tone on the same device | −18.1 dB |
 
-Chrome supplies neural voices over the network; Brave removes those Google
-services by default. **Use Chrome to hear the demo**, and keep a network
-connection — the voices are fetched, not installed locally. Without a voice the
-page still works and the verdicts are shown on screen; you simply do not hear
-them.
+Chrome on Linux only offers Google's *network* voices, so the audio depends on
+a remote service answering at that moment. Installing `speech-dispatcher` and
+`espeak-ng` does not change it: both speak fine from a shell (−1.8 dB), while
+Chrome still reports zero local voices, `--enable-speech-dispatcher` included.
+
+A pre-rendered file has none of that exposure. It also means **any** browser
+can play the demo, and anyone cloning this repository hears the same thing we
+did — which a network voice could never guarantee.
+
+If a line will not play, the page says so in a red banner instead of running on
+in silence. There is a watchdog for the case where playback is accepted and
+then never starts.
 
 ## Licence
 
