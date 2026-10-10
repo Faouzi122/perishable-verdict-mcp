@@ -40,6 +40,7 @@
   <div class="ring" id="ring"><span id="ringIcon">🔵</span></div>
 
   <div class="card">
+    <div id="voxWarn" style="display:none;margin:0 0 .6rem;padding:.5rem .8rem;border-radius:.5rem;background:#5a1111;color:#ffd9d9;font-size:.85rem;font-weight:600"></div>
     <div class="spoken" id="spoken">Ask the assistant whether you can commit to the order.</div>
     <div class="meta" id="meta"></div>
     <div class="meta" id="voice" style="opacity:.65"></div>
@@ -81,15 +82,37 @@ function showVoice() {
   if (el) el.textContent = VOICE ? `voice: ${VOICE.name}` : "no speech voice available";
 }
 
+// A failed utterance used to be invisible: speak() returned, no event fired,
+// and the page looked fine while recording 15 s of silence. Measured 2026-10-10
+// on this machine (network voices only, -91 dB captured). Never fail quietly.
+function voxWarn(msg) {
+  const b = $("voxWarn");
+  b.textContent = "\u26A0 no sound: " + msg;
+  b.style.display = "block";
+  console.error("[speech] " + msg);
+}
+
 function say(text) {
   $("spoken").innerHTML = text;
-  if (!window.speechSynthesis) return;
+  if (!window.speechSynthesis) { voxWarn("this browser has no speech synthesis"); return; }
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance($("spoken").textContent);
   if (VOICE) { u.voice = VOICE; u.lang = VOICE.lang; }
   u.rate = 0.96; u.pitch = 1.0; u.volume = 1.0;
   $("ring").classList.add("speaking");
-  u.onend = () => $("ring").classList.remove("speaking");
+  let started = false;
+  u.onstart = () => { started = true; $("voxWarn").style.display = "none"; };
+  u.onend   = () => $("ring").classList.remove("speaking");
+  u.onerror = e => { $("ring").classList.remove("speaking");
+                     voxWarn("synthesis error (" + (e.error || "unknown") + ")"); };
+  // A network voice can accept speak() and then never speak: no start, no end,
+  // no error. Only a watchdog catches that case.
+  setTimeout(() => { if (!started) {
+    $("ring").classList.remove("speaking");
+    voxWarn("the voice never started \u2014 " +
+            (VOICE && !VOICE.localService ? "network voice unreachable"
+                                          : "no local voice installed"));
+  } }, 2500);
   speechSynthesis.speak(u);
 }
 

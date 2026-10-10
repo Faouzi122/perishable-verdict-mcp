@@ -22,6 +22,22 @@ ffmpeg -nostdin -loglevel error -y -i "$VIDEO" -vn -ac 1 -ar 16000 "$WAV" || {
 DUR=$("$VENV" -c "import wave;w=wave.open('$WAV');print(round(w.getnframes()/w.getframerate(),1))")
 echo "   audio : ${DUR}s"
 
+# Distinguer une prise MUETTE d'une voix peu intelligible : le conseil a donner
+# n'est pas le meme. Mesure du 2026-10-10 : une prise a -91 dB recevait
+# « ralentir le debit », conseil inutile puisqu'aucun son n'existait.
+PIC=$(ffmpeg -v info -nostats -i "$VIDEO" -af volumedetect -f null /dev/null 2>&1 \
+      | sed -n 's/.*max_volume: *\(-*[0-9.]*\) dB.*/\1/p' | head -1)
+if [ -z "$PIC" ]; then
+  echo "   ❌ niveau sonore NON MESURE sur $VIDEO — refus de conclure"; exit 1
+fi
+echo "   niveau crete : ${PIC} dB"
+if awk -v p="$PIC" 'BEGIN{exit !(p+0 < -60)}'; then
+  echo "   ❌ PRISE MUETTE (${PIC} dB = plancher du 16 bits)."
+  echo "      Rien a transcrire. Ce n'est PAS un probleme de debit ni de voix :"
+  echo "      aucun son n'a ete emis. Lancer : bash demo/diagnostic-son.sh"
+  exit 1
+fi
+
 echo "── transcription (modèle $MODELE, local)"
 "$VENV" - "$WAV" "$MODELE" "${SCENARIO:-complet}" <<'PY'
 import sys, re

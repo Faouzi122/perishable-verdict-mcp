@@ -55,4 +55,26 @@ DUR=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$OUT
 echo "   ✅ $OUT"
 echo "      durée ${DUR}s · $(du -h "$OUT" | cut -f1) · piste audio : ${HAS_AUDIO:-AUCUNE}"
 [ "$HAS_AUDIO" = "audio" ] || { echo "      ⚠️ SANS SON — refaire"; exit 1; }
+
+# Une piste audio PRESENTE peut etre entierement muette : mesure du 2026-10-10,
+# une prise de 15 s avec piste aac valide ou les 1 507 328 echantillons etaient
+# a -91 dB (plancher du 16 bits). Verifier le stream ne suffit pas, il faut le
+# niveau. Seuil : -60 dB, tres en dessous d'une voix normale (-25 a -15 dB).
+PIC=$(ffmpeg -v info -nostats -i "$OUT" -af volumedetect -f null /dev/null 2>&1 \
+      | sed -n 's/.*max_volume: *\(-*[0-9.]*\) dB.*/\1/p' | head -1)
+echo "      niveau crete : ${PIC:-inconnu} dB"
+if [ -z "$PIC" ]; then
+  echo "      ⚠️ NIVEAU NON MESURE — ne pas conclure que la prise est bonne"; exit 1
+fi
+if awk -v p="$PIC" 'BEGIN{exit !(p+0 < -60)}'; then
+  cat <<'MUET'
+      ❌ PRISE MUETTE — aucun son n'a ete capte.
+         La piste existe mais elle est vide. Causes, par ordre de frequence :
+           1. la synthese vocale du navigateur n'emet rien (voix reseau HS)
+           2. le son du systeme est coupe ou la sortie a change
+           3. aucun bouton n'a ete clique pendant la prise
+         Diagnostic : bash demo/diagnostic-son.sh
+MUET
+  exit 1
+fi
 echo "$OUT" > /tmp/_derniere_prise

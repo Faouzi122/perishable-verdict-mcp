@@ -9,40 +9,25 @@ if command -v google-chrome >/dev/null; then v "google-chrome installé" "✅"; 
 command -v brave-browser >/dev/null && \
   printf "  %-46s %s\n" "⚠️  Brave présent" "NE PAS l'utiliser pour la démo"
 
-echo "── 2. VOIX — chargées par le réseau, pas installées localement"
-cat > /tmp/_pf.html <<'H'
-<!doctype html><meta charset="utf-8"><title>T</title><pre id="o">x</pre><script>
-let d=false;function f(){if(d)return;const v=speechSynthesis.getVoices();
-if(!v.length&&!window._t){window._t=1;setTimeout(f,2000);return}d=true;
-document.getElementById('o').textContent="N="+v.filter(x=>x.lang&&x.lang.startsWith("en")).length;}
-speechSynthesis.onvoiceschanged=f;setTimeout(f,1500);</script>
-H
-# Chrome headless est parfois lent à publier ses voix : on retente plutôt
-# que de signaler un faux blocage (mesuré : 0 puis 3 sur la même machine).
-N=""
-for _try in 1 2 3; do
-  N=$(timeout 60 google-chrome --headless=new --disable-gpu --no-sandbox \
-       --virtual-time-budget=20000 --dump-dom "file:///tmp/_pf.html" 2>/dev/null \
-       | sed -n 's/.*<pre id="o">N=\([0-9]*\).*/\1/p' | head -1)
-  [ "${N:-0}" -ge 1 ] 2>/dev/null && break
-  sleep 2
-done
-if [ "${N:-0}" -ge 1 ]; then v "voix anglaises détectées dans Chrome : ${N}" "✅"
-else v "voix anglaises dans Chrome : 0" "❌ pas de son → démo muette" ko; fi
+echo "── 2. VOIX — on mesure le son EMIS, pas les voix annoncees"
+# Mesure du 2026-10-10 : Chrome annoncait 3 voix anglaises et n'emettait
+# RIEN (-91 dB). Compter les voix ne prouve pas qu'elles sonnent ; seule la
+# mesure du niveau le prouve. Ce controle delegue au diagnostic complet.
+if bash demo/diagnostic-son.sh >/tmp/_son.log 2>&1; then
+  v "la synthese vocale emet du son ($(sed -n 's/.*✅ \(-*[0-9.]*\) dB — la voix.*/\1/p' /tmp/_son.log | head -1) dB)" "✅"
+else
+  v "synthese vocale muette" "❌ voir /tmp/_son.log" ko
+  sed -n '/VERDICT/,$p' /tmp/_son.log | sed 's/^/     /'
+fi
 
-echo "── 3. RÉSEAU — les voix Google se chargent en ligne"
-if curl -s -o /dev/null -m 10 -w "%{http_code}" https://www.google.com | grep -qE '^[23]'; then
-  v "connexion sortante active" "✅"
-else v "connexion sortante" "❌ voix réseau indisponibles" ko; fi
-
-echo "── 4. SON SYSTÈME — on capture la sortie audio, pas le micro"
+echo "── 3. SON SYSTÈME — on capture la sortie audio, pas le micro"
 MON=$(pactl list short sources 2>/dev/null | awk '/monitor/{print $2; exit}')
 if [ -n "$MON" ]; then v "moniteur audio : ${MON:0:38}" "✅"
 else v "moniteur audio" "❌ le son ne serait pas capté" ko; fi
 if ffmpeg -hide_banner -devices 2>/dev/null | grep -q pulse; then v "ffmpeg sait lire pulse" "✅"
 else v "ffmpeg sans support pulse" "❌" ko; fi
 
-echo "── 5. SERVEUR ET TESTS"
+echo "── 4. SERVEUR ET TESTS"
 command -v ffmpeg >/dev/null && v "ffmpeg (capture + extraction audio)" "✅" || v "ffmpeg" "❌" ko
 [ -x "$HOME/.local/venv-whisper/bin/python" ] && v "faster-whisper (vérif. intelligibilité)" "✅" || v "faster-whisper" "❌" ko
 if bash "$(dirname "$0")/../tests/smoke.sh" >/tmp/_sm.log 2>&1; then
