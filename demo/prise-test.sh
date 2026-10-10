@@ -27,7 +27,7 @@ cat <<'TXT'
   │                                                              │
   │  Après Entrée : 3 s, puis 14 s d'enregistrement.             │
   │  Pendant ces 14 s, clique le PREMIER bouton de la page,      │
-  │  puis le TROISIÈME. Laisse parler la voix.                   │
+  │  puis le TROISIÈME. Laisse parler la voix jusqu'au bout.     │
   └──────────────────────────────────────────────────────────────┘
 
 TXT
@@ -38,4 +38,4 @@ PRISE=$(cat /tmp/_derniere_prise)
 
 echo
 echo "── vérification objective de la voix"
-bash demo/verifier-voix.sh "$PRISE"
+SCENARIO=test bash demo/verifier-voix.sh "$PRISE"

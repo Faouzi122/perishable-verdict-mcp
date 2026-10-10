@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Vérification OBJECTIVE de l'intelligibilité de la voix.
 # Transcrit l'audio d'une prise et vérifie que les 3 phrases clés sont retrouvées.
-#   bash demo/verifier-voix.sh prise.mp4
+#   bash demo/verifier-voix.sh prise.mp4            # vraie prise : 3 phrases
+#   SCENARIO=test bash demo/verifier-voix.sh x.mp4  # prise test  : 2 phrases
+#
+# La prise test ne joue que les boutons 1 et 3 : elle ne peut PAS prononcer
+# "that answer has expired", qui exige d'attendre la fin de la fenetre de 90 s.
 set -uo pipefail
 VIDEO="${1:?usage: verifier-voix.sh <fichier.mp4>}"
 VENV="$HOME/.local/venv-whisper/bin/python"
@@ -19,20 +23,25 @@ DUR=$("$VENV" -c "import wave;w=wave.open('$WAV');print(round(w.getnframes()/w.g
 echo "   audio : ${DUR}s"
 
 echo "── transcription (modèle $MODELE, local)"
-"$VENV" - "$WAV" "$MODELE" <<'PY'
+"$VENV" - "$WAV" "$MODELE" "${SCENARIO:-complet}" <<'PY'
 import sys, re
 from faster_whisper import WhisperModel
-wav, modele = sys.argv[1], sys.argv[2]
+wav, modele, scenario = sys.argv[1], sys.argv[2], sys.argv[3]
 segments, _ = WhisperModel(modele, device="cpu", compute_type="int8").transcribe(wav, language="en")
 texte = " ".join(s.text for s in segments)
 print("\n   TRANSCRIPTION :")
 print("   " + texte.strip()[:600] + "\n")
 
-ATTENDU = {
+PHRASES = {
     "verdict + péremption": "only good for 90 seconds",
     "EXPIRED par le temps": "that answer has expired",
     "injection sans effet": "recorded it as data not as a command",
 }
+if scenario == "test":
+    ATTENDU = {k: v for k, v in PHRASES.items() if k != "EXPIRED par le temps"}
+else:
+    ATTENDU = PHRASES
+print("   scenario : %s -> %d phrase(s) attendue(s)" % (scenario, len(ATTENDU)))
 norm = lambda t: re.sub(r"[^a-z0-9 ]", " ", t.lower())
 norm = lambda t, _n=norm: re.sub(r"\s+", " ", _n(t)).strip()
 got, total = 0, len(ATTENDU)
