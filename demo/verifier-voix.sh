@@ -87,7 +87,7 @@ fi
 
 echo "── transcription (modèle $MODELE, local)"
 "$VENV" - "$WAV" "$MODELE" "${SCENARIO:-complet}" <<'PY'
-import sys, re
+import json, sys, re
 from faster_whisper import WhisperModel
 wav, modele, scenario = sys.argv[1], sys.argv[2], sys.argv[3]
 segments, _ = WhisperModel(modele, device="cpu", compute_type="int8").transcribe(wav, language="en")
@@ -95,27 +95,47 @@ texte = " ".join(s.text for s in segments)
 print("\n   TRANSCRIPTION :")
 print("   " + texte.strip()[:600] + "\n")
 
-PHRASES = {
-    "verdict + péremption": "only good for 90 seconds",
-    "EXPIRED par le temps": "that answer has expired",
-    "injection sans effet": "recorded it as data not as a command",
-}
-if scenario == "test":
-    ATTENDU = {k: v for k, v in PHRASES.items() if k != "EXPIRED par le temps"}
-else:
-    ATTENDU = PHRASES
-print("   scenario : %s -> %d phrase(s) attendue(s)" % (scenario, len(ATTENDU)))
+# Les phrases ne sont PAS recopiees ici : elles viennent de webui/lines.json,
+# la meme source que la synthese. Deux copies auraient derive des la premiere
+# reformulation.
+lignes = json.load(open("webui/lines.json"))
+JOUEES = {"test": ["ask", "injection"], "complet": ["ask", "expired", "injection"]}
+ordre = JOUEES.get(scenario, JOUEES["complet"])
+ATTENDU = {i: lignes[i] for i in ordre if i in lignes}
+if len(ATTENDU) != len(ordre):
+    print("   ❌ phrases absentes de lines.json :",
+          ", ".join(i for i in ordre if i not in lignes))
+    sys.exit(1)
+print(f"   scenario : {scenario} -> {len(ATTENDU)} phrase(s) attendue(s) : {', '.join(ordre)}")
+
 norm = lambda t: re.sub(r"[^a-z0-9 ]", " ", t.lower())
 norm = lambda t, _n=norm: re.sub(r"\s+", " ", _n(t)).strip()
 got, total = 0, len(ATTENDU)
+entendu = set(norm(texte).split())
 print("   PHRASES CLÉS :")
-for label, phrase in ATTENDU.items():
-    mots = norm(phrase).split()
-    trouves = sum(1 for m in mots if m in norm(texte).split())
-    pct = 100 * trouves // len(mots)
+for label, ligne in ATTENDU.items():
+    mots = norm(ligne["text"]).split()
+    pct = 100 * sum(1 for m in mots if m in entendu) // len(mots)
+    # Le pourcentage seul laisse passer un contresens : espeak marquait 87 %
+    # en disant « as beta » au lieu de « as data ». Les mots porteurs,
+    # declares dans lines.json, sont donc obligatoires.
+    # Ici on verifie que la PRISE a bien capte la phrase, pas que la voix est
+    # bonne : cela est deja garanti fichier par fichier par synthese-voix.sh,
+    # a 100 % et mots porteurs compris. Transcrire 26 s d'un coup est une tache
+    # plus dure que 9 s isolees — mesure du 2026-10-10, « command » devenait
+    # « bad » sur la prise entiere alors que le meme fichier seul donnait 100 %.
+    # Un mot porteur manquant est donc un AVERTISSEMENT a relire, pas un echec :
+    # sinon on rejetterait une prise correcte a cause du transcripteur.
+    cles = [w for w in ligne.get("key", []) if w not in entendu]
     ok = pct >= 70
     got += ok
-    print(f"     {'✅' if ok else '❌'} {label:<22} {pct:3d}% des mots retrouvés")
+    print(f"     {'✅' if ok else '❌'} {label:<12} {pct:3d}% des mots retrouvés")
+    if cles:
+        print(f"        ⚠️ non retrouvés par le transcripteur : {', '.join(cles)}")
+        print(f"           (relire la transcription ci-dessus ; l'audio lui-meme")
+        print(f"            est verifie a 100 % par demo/synthese-voix.sh)")
+    elif ligne.get("key"):
+        print(f"        mots porteurs : tous entendus ({len(ligne['key'])})")
 print(f"\n   RÉSULTAT : {got}/{total} phrases intelligibles")
 print("   → voix validée" if got == total else "   → ⚠️ voix insuffisante : ralentir le débit ou changer de voix")
 sys.exit(0 if got == total else 2)

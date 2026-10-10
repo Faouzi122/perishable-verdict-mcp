@@ -17,6 +17,9 @@ VOIX="${VOIX:-en_US-lessac-medium}"
 VOIX_DIR="${VOIX_DIR:-$HOME/.local/share/piper-voices}"
 MODELE="${MODELE:-base.en}"
 SEUIL="${SEUIL:-85}"          # rappel de mots minimal, par phrase
+# piper normalise a pleine echelle (-0.0 dB mesure) : sans marge, le
+# re-encodage AAC de la video peut saturer. 0.7 laisse ~3 dB de reserve.
+VOLUME="${VOLUME:-0.7}"
 OUT=webui/audio
 
 [ -x "$VENV" ] || { echo "❌ venv absent : $VENV"; exit 1; }
@@ -41,7 +44,8 @@ import json,sys
 d=json.load(open('webui/lines.json'))
 sys.stdout.write(d['$id']['text'])" > "/tmp/_l_$id.txt"
   if ! "$VENV" -m piper -m "$VOIX" --data-dir "$VOIX_DIR" \
-        -i "/tmp/_l_$id.txt" -f "$OUT/$id.wav" --length-scale 1.05 2>/tmp/_piper_err; then
+        -i "/tmp/_l_$id.txt" -f "$OUT/$id.wav" --length-scale 1.05 \
+        --volume "$VOLUME" 2>/tmp/_piper_err; then
     echo "   ❌ $id : piper a echoue"; sed 's/^/      /' /tmp/_piper_err; exit 1
   fi
   [ -s "$OUT/$id.wav" ] || { echo "   ❌ $id : fichier vide"; exit 1; }

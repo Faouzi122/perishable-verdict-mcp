@@ -4,20 +4,63 @@ set -uo pipefail
 OK=0; KO=0
 v () { printf "  %-46s %s\n" "$1" "$2"; [ "${3:-ok}" = "ok" ] && OK=$((OK+1)) || KO=$((KO+1)); }
 
-echo "── 1. NAVIGATEUR — Brave n'a AUCUNE voix (mesuré : 0 contre 19 pour Chrome)"
-if command -v google-chrome >/dev/null; then v "google-chrome installé" "✅"; else v "google-chrome" "❌ REQUIS" ko; fi
-command -v brave-browser >/dev/null && \
-  printf "  %-46s %s\n" "⚠️  Brave présent" "NE PAS l'utiliser pour la démo"
+echo "── 1. NAVIGATEUR — n'importe lequel convient depuis que l'audio est pre-rendu"
+# Avant le 2026-10-10 ce controle exigeait Chrome : la page comptait sur
+# speechSynthesis, et Brave n'exposait aucune voix. L'audio etant desormais
+# lu depuis un fichier, cette contrainte a disparu. Un seul navigateur suffit.
+NAV=""
+for b in google-chrome brave-browser firefox chromium; do
+  command -v "$b" >/dev/null && { NAV="$b"; break; }
+done
+if [ -n "$NAV" ]; then v "navigateur disponible : $NAV" "✅"
+else v "aucun navigateur trouvé" "❌ REQUIS" ko; fi
 
-echo "── 2. VOIX — on mesure le son EMIS, pas les voix annoncees"
-# Mesure du 2026-10-10 : Chrome annoncait 3 voix anglaises et n'emettait
-# RIEN (-91 dB). Compter les voix ne prouve pas qu'elles sonnent ; seule la
-# mesure du niveau le prouve. Ce controle delegue au diagnostic complet.
-if bash demo/diagnostic-son.sh >/tmp/_son.log 2>&1; then
-  v "la synthese vocale emet du son ($(sed -n 's/.*✅ \(-*[0-9.]*\) dB — la voix.*/\1/p' /tmp/_son.log | head -1) dB)" "✅"
+echo "── 2. AUDIO PRE-RENDU — present, a jour, et audible"
+# La voix n'est plus synthetisee par le navigateur (mesure du 2026-10-10 :
+# Chrome n'emettait rien). On verifie donc les fichiers produits, et surtout
+# qu'ils sont PLUS RECENTS que le texte : un texte modifie sans resynthese
+# ferait dire a la page autre chose que ce qui est affiche.
+MANQUE=""
+IDS=$(python3 -c "
+import json
+print(' '.join(k for k in json.load(open('webui/lines.json')) if not k.startswith('_')))" 2>/dev/null)
+if [ -z "$IDS" ]; then
+  v "webui/lines.json illisible" "❌ lancer demo/synthese-voix.sh" ko
 else
-  v "synthese vocale muette" "❌ voir /tmp/_son.log" ko
-  sed -n '/VERDICT/,$p' /tmp/_son.log | sed 's/^/     /'
+  for id in $IDS; do
+    [ -s "webui/audio/$id.wav" ] || MANQUE="$MANQUE $id"
+  done
+  if [ -n "$MANQUE" ]; then
+    v "audio manquant :$MANQUE" "❌ lancer demo/synthese-voix.sh" ko
+  else
+    PERIME=""
+    for id in $IDS; do
+      [ "webui/audio/$id.wav" -nt webui/lines.json ] || PERIME="$PERIME $id"
+    done
+    if [ -n "$PERIME" ]; then
+      v "audio plus ancien que le texte :$PERIME" "❌ resynthetiser" ko
+    else
+      v "$(echo $IDS | wc -w) phrases pre-rendues, a jour" "✅"
+    fi
+  fi
+fi
+
+# Preuve que cet audio precis sort bien des haut-parleurs.
+MON=$(pactl list short sources 2>/dev/null | awk '/monitor/{print $2; exit}')
+if [ -n "$MON" ] && [ -s webui/audio/ask.wav ]; then
+  ( sleep 0.4; paplay webui/audio/ask.wav ) >/dev/null 2>&1 &
+  ffmpeg -v error -f pulse -i "$MON" -t 3 -c:a pcm_s16le /tmp/_pf_son.wav -y 2>/dev/null
+  wait 2>/dev/null
+  PIC=$(ffmpeg -v info -nostats -i /tmp/_pf_son.wav -af volumedetect -f null /dev/null 2>&1 \
+        | sed -n 's/.*max_volume: *\(-*[0-9.]*\) dB.*/\1/p' | head -1)
+  if [ -n "$PIC" ] && awk -v p="$PIC" 'BEGIN{exit !(p+0 >= -60)}'; then
+    v "l'audio de la demo sort bien (${PIC} dB)" "✅"
+  else
+    v "l'audio de la demo ne sort pas (${PIC:-non mesure} dB)" "❌ volume ? sortie ?" ko
+  fi
+  rm -f /tmp/_pf_son.wav
+else
+  v "test de sortie audio impossible" "❌ moniteur ou fichier absent" ko
 fi
 
 echo "── 3. SON SYSTÈME — on capture la sortie audio, pas le micro"
@@ -35,5 +78,5 @@ if bash "$(dirname "$0")/../tests/smoke.sh" >/tmp/_sm.log 2>&1; then
 else v "smoke test" "❌ voir /tmp/_sm.log" ko; fi
 
 echo
-if [ "$KO" -eq 0 ]; then echo "  ✅ PRÊT — $OK contrôles passés. Ouvrir http://127.0.0.1:8765/ dans CHROME, son activé."
+if [ "$KO" -eq 0 ]; then echo "  ✅ PRÊT — $OK contrôles passés. Ouvrir http://127.0.0.1:8765/ dans ${NAV:-le navigateur}, son activé."
 else echo "  ⛔ $KO blocage(s) — ne pas enregistrer."; exit 1; fi

@@ -77,3 +77,38 @@ refuses. An instrument that validates everything validates nothing.
   `TypeError: open() got an unexpected keyword argument 'metadata_errors'`.
   Pinning `av<16` fixes it. The error surfaces only at the first transcription,
   long after install appears to have succeeded.
+
+## The browser could not speak, and said nothing about it
+
+**What happened.** The simulated Alexa+ page used the Web Speech API. A 15 s
+test recording came back with a valid AAC stream in which all 1,507,328
+samples sat at −91 dB: digital silence. Every check we had passed. The
+recorder reported success and the verifier blamed the speaking rate.
+
+**Why.** Chrome on this Linux machine advertises 19 voices, 3 of them English,
+and **all 3 are network voices** (`localService: false`). `speechSynthesis.speak()`
+returned normally and then fired no event at all — no `start`, no `end`, no
+`error`. A reference tone on the same output captured −18.1 dB, so the capture
+path was never at fault.
+
+Installing `speech-dispatcher` and `espeak-ng` did not help. Both speak from a
+shell (−1.8 dB measured), while Chrome kept reporting zero local voices, with
+`--enable-speech-dispatcher` included.
+
+**Cost.** One wasted take, and roughly three hours chasing a recording problem
+that was never a recording problem.
+
+**What we changed.** Every line is pre-rendered locally by piper, verified by
+transcription at build time, and played from a file. The decision itself stays
+live on the server.
+
+**What would have saved the time.** Three things, all cheap:
+
+1. `speak()` should reject, or fire `error`, when no voice can render the text.
+   Silent acceptance is the worst possible outcome for an automated pipeline.
+2. `SpeechSynthesisVoice.localService` tells you a voice is remote but not
+   whether it is *reachable*. A way to ask "can this voice render right now?"
+   would turn a mystery into a precondition.
+3. We now treat it as a rule: **verifying that a stream exists is not verifying
+   that it carries anything.** Checking for an audio track let a silent take
+   through; only measuring the level caught it.

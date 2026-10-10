@@ -19,15 +19,18 @@ else echo "  serveur déjà actif"; fi
 cat <<'TXT'
 
   ┌──────────────────────────────────────────────────────────────┐
-  │  AVANT D'APPUYER SUR ENTRÉE :                                │
+  │  PRISE TEST — 14 s, pour verifier que la capture marche      │
   │                                                              │
-  │   1. Ouvre CHROME (pas Brave) sur  http://127.0.0.1:8765/    │
+  │   1. Ouvre le navigateur sur  http://127.0.0.1:8765/         │
   │   2. Monte le volume des haut-parleurs                       │
-  │   3. Place la fenêtre Chrome bien visible                    │
+  │   3. Place la fenetre bien visible                           │
   │                                                              │
-  │  Après Entrée : 3 s, puis 14 s d'enregistrement.             │
-  │  Pendant ces 14 s, clique le PREMIER bouton de la page,      │
-  │  puis le TROISIÈME. Laisse parler la voix jusqu'au bout.     │
+  │  Apres Entree : 3 s, puis 14 s d'enregistrement.             │
+  │  Pendant ces 14 s : clique le 1er bouton, laisse la voix     │
+  │  finir, puis clique le 3e bouton.                            │
+  │                                                              │
+  │  Le 2e bouton est exclu : il ne parle qu'une fois la         │
+  │  fenetre de 90 s refermee. Il est teste dans la vraie prise. │
   └──────────────────────────────────────────────────────────────┘
 
 TXT
