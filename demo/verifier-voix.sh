@@ -38,6 +38,53 @@ if awk -v p="$PIC" 'BEGIN{exit !(p+0 < -60)}'; then
   exit 1
 fi
 
+# Premier lancement : le modele doit etre telecharge. Sans progression visible,
+# une attente de plusieurs minutes ressemble a un blocage — mesure du
+# 2026-10-10, le telechargement a ete interrompu au Ctrl+C alors qu'il avancait.
+# On le fait donc AVANT, avec barre de progression et volume annonce.
+if ! "$VENV" - "$MODELE" <<'CHK' >/dev/null 2>&1
+import sys, os
+os.environ["HF_HUB_OFFLINE"] = "1"
+from faster_whisper import WhisperModel
+WhisperModel(sys.argv[1], device="cpu", compute_type="int8")
+CHK
+then
+  case "$MODELE" in
+    tiny.en)  POIDS="~40 Mo" ;;
+    base.en)  POIDS="~140 Mo" ;;
+    small.en) POIDS="~480 Mo" ;;
+    *)        POIDS="volume inconnu pour ce modele" ;;
+  esac
+  cat <<EOF
+
+   ⬇  PREMIER LANCEMENT : le modele « $MODELE » doit etre telecharge.
+      Volume : ${POIDS}.
+      Duree : de 2 a 15 min selon la connexion. La barre ci-dessous avance
+      par paliers ; tant qu'elle bouge, NE PAS interrompre.
+
+EOF
+  if ! "$VENV" - "$MODELE" <<'DL'
+import sys
+from huggingface_hub import snapshot_download
+m = {"tiny.en":"Systran/faster-whisper-tiny.en",
+     "base.en":"Systran/faster-whisper-base.en",
+     "small.en":"Systran/faster-whisper-small.en"}.get(sys.argv[1])
+if not m:
+    print("modele inconnu:", sys.argv[1]); sys.exit(1)
+snapshot_download(m)          # barre de progression sur stderr
+print("telechargement termine")
+DL
+  then
+    echo
+    echo "   ❌ TELECHARGEMENT IMPOSSIBLE depuis cette connexion."
+    echo "      Hugging Face est injoignable ou coupe. La verification de la voix"
+    echo "      ne peut pas tourner. Me le signaler : ce n'est pas un faux pas"
+    echo "      de ta part."
+    exit 1
+  fi
+  echo
+fi
+
 echo "── transcription (modèle $MODELE, local)"
 "$VENV" - "$WAV" "$MODELE" "${SCENARIO:-complet}" <<'PY'
 import sys, re
