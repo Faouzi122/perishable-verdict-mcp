@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # LA VRAIE PRISE. Une commande, une touche, et plus rien a faire au clavier.
 #
-#   bash demo/prise-reelle.sh                # la prise
-#   bash demo/prise-reelle.sh --repetition   # repeter sans enregistrer
+#   bash demo/prise-reelle.sh                # la prise, entierement automatique
+#   bash demo/prise-reelle.sh --repetition   # la meme chose sans enregistrer
 #
 # Le script ouvre Chrome lui-meme, en plein ecran, sur la page. Mesure du
 # 2026-10-12 : la premiere prise a filme le TERMINAL, parce qu'il fallait
@@ -15,8 +15,10 @@ export DISPLAY="${DISPLAY:-:0}"
 
 REPET=0
 [ "${1:-}" = "--repetition" ] && REPET=1
-# ask 8.8s + attente 90s + expired 7.5s + injection 8.8s + reactions ~= 125s
-DUREE="${DUREE:-140}"
+# Chrome s'ouvre, la page se pilote seule (?auto=1), on filme 125 s :
+#   ~10 s avant le 1er clic · 90 s de fenetre reelle · 2 lignes parlees
+# La page termine vers t=124 s, l'enregistrement s'arrete a t=130 s.
+DUREE="${DUREE:-125}"
 PROFIL=$(mktemp -d)
 NAV=""
 for b in google-chrome brave-browser chromium firefox; do
@@ -67,24 +69,29 @@ fi
 cat <<TXT
 
   ┌──────────────────────────────────────────────────────────────┐
-  │  CE QUE TU AURAS A FAIRE — 3 clics, rien d'autre             │
+  │  TU N'AS RIEN A FAIRE — NE TOUCHE NI CLAVIER NI SOURIS       │
   │                                                              │
-  │   A. Clique le 1er bouton.   Laisse la voix finir.           │
-  │   B. ATTENDS que le rond devienne ROUGE (environ 90 s).      │
-  │      C'est le coeur de la demo : seul le temps passe.        │
-  │   C. Clique le 2e bouton.    Laisse la voix finir.           │
-  │   D. Clique le 3e bouton.    Laisse la voix finir.           │
+  │  Chrome s'ouvre en plein ecran et la page se pilote seule :  │
+  │   A. 1er bouton presse                                       │
+  │   B. attente de l'expiration REELLE du verdict (~90 s)       │
+  │   C. 2e bouton presse                                        │
+  │   D. 3e bouton presse                                        │
   │                                                              │
-  │  Tu ne touches plus au clavier. Chrome s'ouvre tout seul,    │
-  │  en plein ecran, et se ferme tout seul au bout de ${DUREE} s.     │
-  │  Ne change pas de fenetre : tout se passe dans Chrome.       │
+  │  Chaque bouton s'allume avant d'etre presse, pour que le     │
+  │  spectateur voie ce qui se passe.                            │
+  │                                                              │
+  │  Duree : ${DUREE} s. Chrome se ferme seul. Ne change pas de       │
+  │  fenetre pendant ce temps.                                   │
   └──────────────────────────────────────────────────────────────┘
 
 TXT
-printf '\033[1;33m  ▶ ENTREE pour ouvrir Chrome et commencer \033[0m'; read -r _
 
+# ?auto=1 : la page presse les boutons elle-meme. Un clic declenche par
+# script n'est PAS un geste utilisateur — sans ce drapeau, Chrome refuserait
+# de jouer l'audio et la prise serait muette.
 "$NAV" --user-data-dir="$PROFIL" --no-first-run --no-default-browser-check \
-       --start-fullscreen --app="http://127.0.0.1:8765/" >/dev/null 2>&1 &
+       --autoplay-policy=no-user-gesture-required \
+       --start-fullscreen --app="http://127.0.0.1:8765/?auto=1" >/dev/null 2>&1 &
 sleep 5   # laisser la fenetre s'afficher avant de filmer
 
 if [ $REPET -eq 1 ]; then
@@ -98,6 +105,12 @@ fi
 bash demo/enregistrer.sh --test "$DUREE" || exit 1
 PRISE=$(cat /tmp/_derniere_prise)
 nettoyer
+# --test ne designe ici qu'une duree fixe, pas un brouillon : la vraie prise
+# ne doit pas porter un nom qui la ferait prendre pour un essai.
+case "$PRISE" in
+  */test-*) FINAL="${PRISE/\/test-//prise-}"
+            mv "$PRISE" "$FINAL" && PRISE="$FINAL" && echo "$PRISE" > /tmp/_derniere_prise ;;
+esac
 
 echo
 echo "── verification de la prise"

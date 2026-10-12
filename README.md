@@ -48,6 +48,23 @@ Then open <http://127.0.0.1:8765/> for the simulated Alexa+ experience.
 
 Streamable HTTP, MCP specification **2025-11-25**.
 
+## How the demo video was made
+
+The walkthrough in the video is **driven by a script**, not by a hand on a
+mouse. Opening the page as `/?auto=1` makes it press its own three buttons in
+order, and [`demo/prise-reelle.sh`](demo/prise-reelle.sh) runs the whole thing
+— browser, recording, verification — without anyone touching the keyboard.
+
+Scripted does not mean staged. Every click goes through the same handler a
+real click reaches. Every answer is fetched from the MCP server over HTTP at
+that moment. And the pause in the middle is not a cut or a sped-up clip: the
+script waits for the verdict to **actually expire**, polling the expiry
+timestamp the server returned, however long that takes. Nothing in the
+sequence is pre-recorded except the voice.
+
+Each button lights up briefly before it is pressed, so a viewer can see which
+control is being used — there is no cursor to follow.
+
 ## What is live, and what is pre-rendered
 
 These are two different things, and the demo keeps them apart on purpose.

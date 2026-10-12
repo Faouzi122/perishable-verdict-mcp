@@ -26,6 +26,12 @@
            padding:11px 15px; font-size:14px; font-weight:600; cursor:pointer; margin:3px 4px 3px 0 }
   button.ghost { background:#20293f; color:var(--ink) }
   button:disabled { opacity:.45; cursor:not-allowed }
+  /* The walkthrough is driven by a script, so a viewer never sees a cursor.
+     Each button lights up for a moment before it is pressed, otherwise the
+     page would appear to answer on its own. */
+  button.pressed { outline:3px solid #fff; outline-offset:2px;
+                   transform:scale(.96); filter:brightness(1.35) }
+  button { transition:transform .12s ease, filter .12s ease }
   pre { background:#0a0f1e; color:#b9c4dd; padding:12px; border-radius:8px;
         font-size:12px; overflow:auto; max-height:230px; margin:0 }
   .meta { color:var(--dim); font-size:13px; margin-top:8px }
@@ -176,10 +182,66 @@ $("bInj").onclick = async () => {
     ]});
   if (!v) return;
   lastVerdict = v;
+  // The ring is red at this point: the previous verdict lapsed. This call
+  // opens a fresh window, so clear it — a red ring beside a green icon reads
+  // as a contradiction on screen.
+  $("ring").classList.remove("expired");
   $("ringIcon").textContent = "🟢";
   say("injection");
   $("meta").innerHTML = `Valid until <b>${v.valid_until}</b> · the injected instruction changed nothing · <span id="cd" class="countdown">…</span>`;
   startCountdown(v.valid_until);
   $("bRe").disabled = false;
 };
+
+// ── Scripted walkthrough ─────────────────────────────────────────────────
+// Opened with ?auto=1, the page drives itself: it presses the three buttons
+// in order and waits for the verdict to ACTUALLY expire in between. Nothing
+// is faked - every click goes through the same handler a finger would reach,
+// every answer comes from the MCP server over HTTP, and the wait lasts as
+// long as the server says the verdict stays valid. Only the voice is
+// pre-rendered. See README, "What is live, and what is pre-rendered".
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function press(id) {
+  const b = $(id);
+  b.classList.add("pressed");
+  await sleep(500);          // let the viewer see which button is pressed
+  b.click();
+  await sleep(250);
+  b.classList.remove("pressed");
+}
+
+async function waitForRealExpiry(maxMs) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < maxMs) {
+    if (lastVerdict && new Date(lastVerdict.valid_until) <= new Date()) return true;
+    await sleep(500);
+  }
+  return false;
+}
+
+async function walkthrough() {
+  await sleep(6000);         // the recorder starts while this runs
+  await press("bAsk");
+  await sleep(9500);         // let the spoken line finish
+
+  if (!await waitForRealExpiry(150000)) {
+    voxWarn("the verdict never expired - walkthrough stopped");
+    return;
+  }
+  await sleep(1500);
+  await press("bRe");
+  await sleep(8500);
+
+  await press("bInj");
+  await sleep(9500);
+  document.title = "walkthrough-done";
+}
+
+if (new URLSearchParams(location.search).get("auto") === "1") {
+  window.addEventListener("load", () => {
+    // LINES is fetched by the other load handler; give it a moment.
+    setTimeout(walkthrough, 800);
+  });
+}
 </script>

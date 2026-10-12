@@ -226,7 +226,11 @@ class Handler(BaseHTTPRequestHandler):
         """Serve the simulated Alexa+ web experience."""
         from pathlib import Path
         root = Path(__file__).resolve().parent.parent / "webui"
-        name = "index.html" if self.path in ("/", "/index.html") else self.path.lstrip("/")
+        # The walkthrough is opened as /?auto=1 — without dropping the query
+        # string the path resolves to a file that does not exist and the page
+        # comes back 404 blank. Measured 2026-10-12.
+        path = self.path.split("?", 1)[0].split("#", 1)[0]
+        name = "index.html" if path in ("/", "/index.html") else path.lstrip("/")
         target = (root / name).resolve()
         if root not in target.parents or not target.is_file():
             self.send_response(404); self.send_header("Content-Length", "0"); self.end_headers(); return
