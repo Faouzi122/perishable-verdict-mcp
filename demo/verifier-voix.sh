@@ -120,7 +120,7 @@ for label, ligne in ATTENDU.items():
     # en disant « as beta » au lieu de « as data ». Les mots porteurs,
     # declares dans lines.json, sont donc obligatoires.
     # Ici on verifie que la PRISE a bien capte la phrase, pas que la voix est
-    # bonne : cela est verifie fichier par fichier par synthese-voix.sh,
+    # bonne : cela est verifie fichier par fichier par synthesize-voice.sh,
     # a 100 % et mots porteurs compris. Transcrire 26 s d'un coup est une tache
     # plus dure que 9 s isolees — mesure du 2026-10-10, « command » devenait
     # « bad » sur la prise entiere alors que le meme fichier seul donnait 100 %.
@@ -133,7 +133,7 @@ for label, ligne in ATTENDU.items():
     if cles:
         print(f"        ⚠️ non retrouvés par le transcripteur : {', '.join(cles)}")
         print(f"           (relire la transcription ci-dessus ; l'audio lui-meme")
-        print(f"            est verifie a 100 % par demo/synthese-voix.sh)")
+        print(f"            est verifie a 100 % par demo/synthesize-voice.sh)")
     elif ligne.get("key"):
         print(f"        mots porteurs : tous entendus ({len(ligne['key'])})")
 print(f"\n   RÉSULTAT : {got}/{total} phrases intelligibles")

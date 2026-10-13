@@ -52,7 +52,7 @@ Streamable HTTP, MCP specification **2025-11-25**.
 
 The walkthrough in the video is **driven by a script**, not by a hand on a
 mouse. Opening the page as `/?auto=1` makes it press its own three buttons in
-order, and [`demo/prise-reelle.sh`](demo/prise-reelle.sh) runs the whole thing
+order, and [`demo/record-take.sh`](demo/record-take.sh) runs the whole thing
 — browser, recording, verification — without anyone touching the keyboard.
 
 Scripted does not mean staged. Every click goes through the same handler a
@@ -78,11 +78,11 @@ call.
 **Pre-rendered:** the spoken audio. Each line lives in
 [`webui/lines.json`](webui/lines.json) and is synthesised once, sentence by
 sentence, into `webui/audio/<id>.wav` by
-[`demo/synthese-voix.sh`](demo/synthese-voix.sh). The page plays those files
+[`demo/synthesize-voice.sh`](demo/synthesize-voice.sh). The page plays those files
 through an `<audio>` element.
 
 ```bash
-bash demo/synthese-voix.sh
+bash demo/synthesize-voice.sh
 ```
 
 Synthesis runs **locally** — [piper](https://github.com/rhasspy/piper) with the

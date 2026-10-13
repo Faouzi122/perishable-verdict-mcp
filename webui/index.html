@@ -72,7 +72,7 @@ const $ = id => document.getElementById(id);
 // 2026-10-10: Chrome here exposes only network voices and emits nothing
 // (-91 dB captured), so speechSynthesis cannot be relied on. Each line lives
 // in lines.json and is played from audio/<id>.wav, produced locally by
-// demo/synthese-voix.sh. The verdict and its expiry are NOT pre-rendered:
+// demo/synthesize-voice.sh. The verdict and its expiry are NOT pre-rendered:
 // the MCP server computes them live and they are shown on screen.
 let LINES = null;
 window.addEventListener("load", async () => {
@@ -107,7 +107,7 @@ function say(id, extraHtml) {
   player.onplaying = () => { started = true; $("voxWarn").style.display = "none"; };
   player.onended   = () => $("ring").classList.remove("speaking");
   player.onerror   = () => { $("ring").classList.remove("speaking");
-                             voxWarn("audio/" + id + ".wav will not play \u2014 run demo/synthese-voix.sh"); };
+                             voxWarn("audio/" + id + ".wav will not play \u2014 run demo/synthesize-voice.sh"); };
   player.play().catch(e => {
     $("ring").classList.remove("speaking");
     voxWarn("playback refused (" + e.name + ") \u2014 click the page once, then retry");

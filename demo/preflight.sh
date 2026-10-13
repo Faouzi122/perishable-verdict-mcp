@@ -25,13 +25,13 @@ IDS=$(python3 -c "
 import json
 print(' '.join(k for k in json.load(open('webui/lines.json')) if not k.startswith('_')))" 2>/dev/null)
 if [ -z "$IDS" ]; then
-  v "webui/lines.json illisible" "❌ lancer demo/synthese-voix.sh" ko
+  v "webui/lines.json illisible" "❌ lancer demo/synthesize-voice.sh" ko
 else
   for id in $IDS; do
     [ -s "webui/audio/$id.wav" ] || MANQUE="$MANQUE $id"
   done
   if [ -n "$MANQUE" ]; then
-    v "audio manquant :$MANQUE" "❌ lancer demo/synthese-voix.sh" ko
+    v "audio manquant :$MANQUE" "❌ lancer demo/synthesize-voice.sh" ko
   else
     PERIME=""
     for id in $IDS; do
