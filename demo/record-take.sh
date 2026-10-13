@@ -15,10 +15,10 @@ export DISPLAY="${DISPLAY:-:0}"
 
 REHEARSE=0
 case "${1:-}" in --rehearse|--repetition) REHEARSE=1 ;; esac
-# The browser opens, the page drives itself (?auto=1), we film 125 s:
-#   ~10 s before the first click · 90 s of real window · 2 spoken lines
-# The page finishes around t=124 s, the recording stops at t=130 s.
-DURATION="${DURATION:-125}"
+# The browser opens, the page drives itself (?auto=1), we film 135 s:
+#   ~8 s of settled page · 90 s of real window · 2 spoken lines
+# The page finishes around t=120 s, leaving margin before the recorder stops.
+DURATION="${DURATION:-135}"
 PROFILE=$(mktemp -d)
 BROWSER=""
 for b in google-chrome brave-browser chromium firefox; do

@@ -29,9 +29,15 @@
   /* The walkthrough is driven by a script, so a viewer never sees a cursor.
      Each button lights up for a moment before it is pressed, otherwise the
      page would appear to answer on its own. */
-  button.pressed { outline:3px solid #fff; outline-offset:2px;
-                   transform:scale(.96); filter:brightness(1.35) }
-  button { transition:transform .12s ease, filter .12s ease }
+  /* Amber, because it has to read on BOTH button styles: the primary button
+     is bright cyan and the others are dark navy. Measured 2026-10-12: a white
+     outline plus brightness(1.35) lifted the dark buttons by +9.5 and +12.7
+     luminance but was undetectable on the cyan one - it washed it out instead
+     of marking it. */
+  button.pressed { outline:4px solid #ffb300; outline-offset:3px;
+                   box-shadow:0 0 0 9px rgba(255,179,0,.30);
+                   transform:scale(.94) }
+  button { transition:transform .12s ease, box-shadow .12s ease }
   pre { background:#0a0f1e; color:#b9c4dd; padding:12px; border-radius:8px;
         font-size:12px; overflow:auto; max-height:230px; margin:0 }
   .meta { color:var(--dim); font-size:13px; margin-top:8px }
@@ -221,7 +227,12 @@ async function waitForRealExpiry(maxMs) {
 }
 
 async function walkthrough() {
-  await sleep(6000);         // the recorder starts while this runs
+  // Long enough that the first press always lands AFTER the recorder is
+  // rolling. The script sleeps 5 s for the window, then the recorder counts
+  // down 3 s of its own: about 10 s of pre-roll in total. Measured
+  // 2026-10-13 with a 6 s wait, a fast page load put the first click 0.5 s
+  // BEFORE recording started and the video opened on an answer already given.
+  await sleep(15000);
   await press("bAsk");
   await sleep(9500);         // let the spoken line finish
 
