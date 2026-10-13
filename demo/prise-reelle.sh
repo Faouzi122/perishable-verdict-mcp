@@ -121,7 +121,7 @@ if bash demo/verifier-voix.sh "$PRISE"; then
   echo "      duree ${D}s — la limite du concours est de 180 s."
   [ "${D:-0}" -gt 180 ] 2>/dev/null && echo "      ⚠️ TROP LONGUE de $(( D - 180 ))s."
   echo
-  echo "      Rien n'est publie. La publication reste a la S5, sous PSP."
+  echo "      Nothing has been published. This only produced a local file."
 else
   echo
   echo "   ⛔ PRISE A REFAIRE. La raison exacte est ci-dessus."

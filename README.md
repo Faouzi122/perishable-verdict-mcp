@@ -125,4 +125,4 @@ then never starts.
 
 ## Licence
 
-MIT.
+MIT — see [LICENSE](LICENSE).
