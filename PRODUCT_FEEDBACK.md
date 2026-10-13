@@ -7,7 +7,7 @@ point names what was measured, so it can be checked rather than believed.
 
 **What worked.** The JSON schema is complete and unambiguous. Implementing
 `initialize`, `tools/list` and `tools/call` from the schema alone took a few
-hours with no framework and no dependency — the whole server is 278 lines of
+hours with no framework and no dependency — the whole server is 292 lines of
 Python standard library. That is a good sign for the protocol's accessibility.
 
 **What was hard.** Finding *what changed* between revisions. The spec site
@@ -59,6 +59,12 @@ Allowing "an Agent Skill **or** a self-hosted MCP server" while also requiring
 that the code actually exercise the technology is a useful constraint: it rules
 out submissions that only describe something. Worth keeping.
 
-The requirement that nothing be pre-recorded is also what made this demo
-honest: the page shows which voice it selected and prints the raw MCP response
-under the spoken answer, so a viewer can see the words were produced live.
+Requiring that the demo video show the project actually functioning pushed the
+build in a useful direction. The page prints the raw MCP response under the
+spoken answer, and the countdown is the server's own expiry, so a viewer can
+check that the verdict was produced live rather than take it on trust.
+
+One honest caveat on our own submission: the spoken audio is pre-rendered
+locally, because the browser's speech synthesis emitted nothing on the build
+machine. The decision itself — verdict, controlling observation, expiry — is
+computed per call at runtime. The split is documented in the README.
