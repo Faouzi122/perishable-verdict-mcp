@@ -60,6 +60,18 @@ sys.stdout.write(d['$id']['text'])" > "/tmp/_l_$id.txt"
   printf "   %-10s %5.1f s · %s\n" "$id" "$D" "$(du -h "$OUT/$id.wav" | cut -f1)"
 done
 
+# Record WHAT each file was rendered from, so staleness can be judged on the
+# spoken text rather than on file timestamps. Editing a comment in lines.json
+# used to mark every clip stale even though not one word had changed.
+"$VENV" - "$OUT" <<'MAN'
+import hashlib, json, sys
+out = sys.argv[1]
+lines = json.load(open("webui/lines.json"))
+man = {k: hashlib.sha256(v["text"].encode()).hexdigest()
+       for k, v in lines.items() if not k.startswith("_")}
+json.dump(man, open(f"{out}/manifest.json", "w"), indent=2, sort_keys=True)
+MAN
+
 echo
 echo "── verification: is every line pronounced correctly?"
 "$VENV" - "$MODEL" "$THRESHOLD" "$OUT" <<'PY'

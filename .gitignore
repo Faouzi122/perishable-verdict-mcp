@@ -1,7 +1,8 @@
-# Notes de travail — ne partent jamais dans le dépôt public
-README-INTERNE.md
+# Working notes — never published
+NOTES-INTERNAL.md
 .env
 __pycache__/
 *.pyc
 recordings/
+voice-samples/
 comparaison-voix/

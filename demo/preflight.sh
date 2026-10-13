@@ -1,104 +1,110 @@
 #!/usr/bin/env bash
-# Contrôle avant tournage. Lecture seule. Tout doit être ✅ avant d'enregistrer.
+# Pre-flight checks. Read-only. Everything must be ✅ before recording.
 set -uo pipefail
 OK=0; KO=0
 v () { printf "  %-46s %s\n" "$1" "$2"; [ "${3:-ok}" = "ok" ] && OK=$((OK+1)) || KO=$((KO+1)); }
 
-echo "── 1. NAVIGATEUR — n'importe lequel convient depuis que l'audio est pre-rendu"
-# Avant le 2026-10-10 ce controle exigeait Chrome : la page comptait sur
-# speechSynthesis, et Brave n'exposait aucune voix. L'audio etant desormais
-# lu depuis un fichier, cette contrainte a disparu. Un seul navigateur suffit.
-NAV=""
+echo "── 1. BROWSER — any one will do now that the audio is pre-rendered"
+# Before 2026-10-10 this check demanded Chrome: the page relied on
+# speechSynthesis and Brave exposed no voice at all. The audio is read from a
+# file now, so that constraint is gone. One browser is enough.
+BROWSER=""
 for b in google-chrome brave-browser firefox chromium; do
-  command -v "$b" >/dev/null && { NAV="$b"; break; }
+  command -v "$b" >/dev/null && { BROWSER="$b"; break; }
 done
-if [ -n "$NAV" ]; then v "navigateur disponible : $NAV" "✅"
-else v "aucun navigateur trouvé" "❌ REQUIS" ko; fi
+if [ -n "$BROWSER" ]; then v "browser available: $BROWSER" "✅"
+else v "no browser found" "❌ REQUIRED" ko; fi
 
-echo "── 2. AUDIO PRE-RENDU — present, a jour, et audible"
-# La voix n'est plus synthetisee par le navigateur (mesure du 2026-10-10 :
-# Chrome n'emettait rien). On verifie donc les fichiers produits, et surtout
-# qu'ils sont PLUS RECENTS que le texte : un texte modifie sans resynthese
-# ferait dire a la page autre chose que ce qui est affiche.
-MANQUE=""
+echo "── 2. PRE-RENDERED AUDIO — present, current, and audible"
+# The voice is no longer synthesised by the browser (measured 2026-10-10:
+# Chrome emitted nothing). So we check the files that were produced, and above
+# all that they are NEWER than the text: text edited without re-synthesising
+# would make the page say something other than what it displays.
+MISSING=""
 IDS=$(python3 -c "
 import json
 print(' '.join(k for k in json.load(open('webui/lines.json')) if not k.startswith('_')))" 2>/dev/null)
 if [ -z "$IDS" ]; then
-  v "webui/lines.json illisible" "❌ lancer demo/synthesize-voice.sh" ko
+  v "webui/lines.json unreadable" "❌ run demo/synthesize-voice.sh" ko
 else
   for id in $IDS; do
-    [ -s "webui/audio/$id.wav" ] || MANQUE="$MANQUE $id"
+    [ -s "webui/audio/$id.wav" ] || MISSING="$MISSING $id"
   done
-  if [ -n "$MANQUE" ]; then
-    v "audio manquant :$MANQUE" "❌ lancer demo/synthesize-voice.sh" ko
+  if [ -n "$MISSING" ]; then
+    v "audio missing:$MISSING" "❌ run demo/synthesize-voice.sh" ko
   else
-    PERIME=""
-    for id in $IDS; do
-      [ "webui/audio/$id.wav" -nt webui/lines.json ] || PERIME="$PERIME $id"
-    done
-    if [ -n "$PERIME" ]; then
-      v "audio plus ancien que le texte :$PERIME" "❌ resynthetiser" ko
+    # Judged on the spoken text, not on timestamps: a comment edited in
+    # lines.json once marked every clip stale with no word changed.
+    STALE=$(python3 -c "
+import hashlib, json, os
+lines = json.load(open('webui/lines.json'))
+try:
+    man = json.load(open('webui/audio/manifest.json'))
+except Exception:
+    man = {}
+print(' '.join(k for k, v in lines.items() if not k.startswith('_')
+      and man.get(k) != hashlib.sha256(v['text'].encode()).hexdigest()))" 2>/dev/null)
+    if [ -n "$STALE" ]; then
+      v "audio does not match the text:$STALE" "❌ re-synthesise" ko
     else
-      v "$(echo $IDS | wc -w) phrases pre-rendues, a jour" "✅"
+      v "$(echo $IDS | wc -w) lines pre-rendered, up to date" "✅"
     fi
   fi
 fi
 
-# Preuve que LE NAVIGATEUR sort bien cet audio. paplay ne suffisait pas :
-# mesure du 2026-10-12, paplay donnait -3.1 dB et la prise etait muette parce
-# que la page n'avait jamais ete au premier plan. Ce controle emprunte le vrai
-# chemin — Chrome -> PulseAudio -> moniteur.
+# Proof that THE BROWSER actually emits this audio. paplay was not enough:
+# measured 2026-10-12, paplay gave -3.1 dB while the take was silent, because
+# the page had never been in front. This check takes the real path -
+# browser -> PulseAudio -> monitor.
 MON=$(pactl list short sources 2>/dev/null | awk '/monitor/{print $2; exit}')
 if [ -n "$MON" ] && [ -s webui/audio/ask.wav ]; then
-  NAVP=""
+  PFBROWSER=""
   for b in google-chrome brave-browser chromium; do
-    command -v "$b" >/dev/null && { NAVP="$b"; break; }
+    command -v "$b" >/dev/null && { PFBROWSER="$b"; break; }
   done
-  SRV=0
   curl -s -o /dev/null -m 2 http://127.0.0.1:8765/ || {
     setsid python3 src/server.py >/tmp/_pf_srv.log 2>&1 </dev/null & disown
-    SRV=1; for _ in 1 2 3 4 5; do curl -s -o /dev/null -m 2 http://127.0.0.1:8765/ && break; sleep 1; done; }
-  if [ -n "$NAVP" ] && curl -s -o /dev/null -m 2 http://127.0.0.1:8765/ ; then
+    for _ in 1 2 3 4 5; do curl -s -o /dev/null -m 2 http://127.0.0.1:8765/ && break; sleep 1; done; }
+  if [ -n "$PFBROWSER" ] && curl -s -o /dev/null -m 2 http://127.0.0.1:8765/ ; then
     PROF=$(mktemp -d)
     printf '%s' '<body><script>new Audio("audio/ask.wav").play()</script></body>' > webui/_pf.html
-    "$NAVP" --user-data-dir="$PROF" --no-first-run --no-default-browser-check \
+    "$PFBROWSER" --user-data-dir="$PROF" --no-first-run --no-default-browser-check \
             --autoplay-policy=no-user-gesture-required \
             --app="http://127.0.0.1:8765/_pf.html" >/dev/null 2>&1 &
     sleep 4
-    ffmpeg -v error -f pulse -i "$MON" -t 6 -c:a pcm_s16le /tmp/_pf_son.wav -y 2>/dev/null
+    ffmpeg -v error -f pulse -i "$MON" -t 6 -c:a pcm_s16le /tmp/_pf_sound.wav -y 2>/dev/null
     pkill -f "$PROF" 2>/dev/null; rm -rf "$PROF" webui/_pf.html
   else
     ( sleep 0.4; paplay webui/audio/ask.wav ) >/dev/null 2>&1 &
-    ffmpeg -v error -f pulse -i "$MON" -t 3 -c:a pcm_s16le /tmp/_pf_son.wav -y 2>/dev/null
+    ffmpeg -v error -f pulse -i "$MON" -t 3 -c:a pcm_s16le /tmp/_pf_sound.wav -y 2>/dev/null
     wait 2>/dev/null
   fi
-  PIC=$(ffmpeg -v info -nostats -i /tmp/_pf_son.wav -af volumedetect -f null /dev/null 2>&1 \
+  PEAK=$(ffmpeg -v info -nostats -i /tmp/_pf_sound.wav -af volumedetect -f null /dev/null 2>&1 \
         | sed -n 's/.*max_volume: *\(-*[0-9.]*\) dB.*/\1/p' | head -1)
-  if [ -n "$PIC" ] && awk -v p="$PIC" 'BEGIN{exit !(p+0 >= -60)}'; then
-    v "le navigateur sort bien l'audio (${PIC} dB)" "✅"
+  if [ -n "$PEAK" ] && awk -v p="$PEAK" 'BEGIN{exit !(p+0 >= -60)}'; then
+    v "the browser does emit the audio (${PEAK} dB)" "✅"
   else
-    v "l'audio de la demo ne sort pas (${PIC:-non mesure} dB)" "❌ volume ? sortie ?" ko
+    v "the demo audio does not come out (${PEAK:-not measured} dB)" "❌ volume? output?" ko
   fi
-  rm -f /tmp/_pf_son.wav
+  rm -f /tmp/_pf_sound.wav
 else
-  v "test de sortie audio impossible" "❌ moniteur ou fichier absent" ko
+  v "audio output test impossible" "❌ monitor or file missing" ko
 fi
 
-echo "── 3. SON SYSTÈME — on capture la sortie audio, pas le micro"
+echo "── 3. SYSTEM SOUND — we capture the audio output, not the mic"
 MON=$(pactl list short sources 2>/dev/null | awk '/monitor/{print $2; exit}')
-if [ -n "$MON" ]; then v "moniteur audio : ${MON:0:38}" "✅"
-else v "moniteur audio" "❌ le son ne serait pas capté" ko; fi
-if ffmpeg -hide_banner -devices 2>/dev/null | grep -q pulse; then v "ffmpeg sait lire pulse" "✅"
-else v "ffmpeg sans support pulse" "❌" ko; fi
+if [ -n "$MON" ]; then v "audio monitor: ${MON:0:38}" "✅"
+else v "audio monitor" "❌ the sound would not be captured" ko; fi
+if ffmpeg -hide_banner -devices 2>/dev/null | grep -q pulse; then v "ffmpeg can read pulse" "✅"
+else v "ffmpeg without pulse support" "❌" ko; fi
 
-echo "── 4. SERVEUR ET TESTS"
-command -v ffmpeg >/dev/null && v "ffmpeg (capture + extraction audio)" "✅" || v "ffmpeg" "❌" ko
-[ -x "$HOME/.local/venv-whisper/bin/python" ] && v "faster-whisper (vérif. intelligibilité)" "✅" || v "faster-whisper" "❌" ko
+echo "── 4. SERVER AND TESTS"
+command -v ffmpeg >/dev/null && v "ffmpeg (capture + audio extraction)" "✅" || v "ffmpeg" "❌" ko
+[ -x "$HOME/.local/venv-whisper/bin/python" ] && v "faster-whisper (intelligibility check)" "✅" || v "faster-whisper" "❌" ko
 if bash "$(dirname "$0")/../tests/smoke.sh" >/tmp/_sm.log 2>&1; then
-  v "smoke test ($(grep -c PASS /tmp/_sm.log) contrôles)" "✅"
-else v "smoke test" "❌ voir /tmp/_sm.log" ko; fi
+  v "smoke test ($(grep -c PASS /tmp/_sm.log) checks)" "✅"
+else v "smoke test" "❌ see /tmp/_sm.log" ko; fi
 
 echo
-if [ "$KO" -eq 0 ]; then echo "  ✅ PRÊT — $OK contrôles passés. Le script ouvrira le navigateur lui-même."
-else echo "  ⛔ $KO blocage(s) — ne pas enregistrer."; exit 1; fi
+if [ "$KO" -eq 0 ]; then echo "  ✅ READY — $OK checks passed. The script opens the browser itself."
+else echo "  ⛔ $KO blocker(s) — do not record."; exit 1; fi

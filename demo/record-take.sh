@@ -105,19 +105,19 @@ if [ $REHEARSE -eq 1 ]; then
   exit 0
 fi
 
-bash demo/enregistrer.sh --test "$DURATION" || exit 1
-TAKE=$(cat /tmp/_derniere_prise)
+bash demo/record-screen.sh --test "$DURATION" || exit 1
+TAKE=$(cat /tmp/_last_take)
 cleanup
 # --test only means a fixed duration here, not a draft: the real take must not
 # carry a name that makes it look like a throwaway.
 case "$TAKE" in
   */test-*) FINAL="${TAKE/\/test-//take-}"
-            mv "$TAKE" "$FINAL" && TAKE="$FINAL" && echo "$TAKE" > /tmp/_derniere_prise ;;
+            mv "$TAKE" "$FINAL" && TAKE="$FINAL" && echo "$TAKE" > /tmp/_last_take ;;
 esac
 
 echo
 echo "── checking the take"
-if bash demo/verifier-voix.sh "$TAKE"; then
+if bash demo/check-voice.sh "$TAKE"; then
   D=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$TAKE" | cut -d. -f1)
   echo
   echo "   ✅ TAKE ACCEPTED: $TAKE"

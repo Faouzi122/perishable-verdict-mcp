@@ -1,5 +1,5 @@
 {
-  "_comment": "Single source of truth for every spoken line. demo/synthese-voix.sh renders audio/<id>.wav from .text, then checks it with Whisper; .key lists the words that carry the meaning and must be heard exactly, whatever the overall score says. The page shows .html and plays that file. Change .text here and re-run the synthesis - never edit one side alone. Avoid hyphens in .text: they split into two tokens and cause false failures.",
+  "_comment": "Single source of truth for every spoken line. demo/synthesize-voice.sh renders audio/<id>.wav from .text, then checks it with Whisper; .key lists the words that carry the meaning and must be heard exactly, whatever the overall score says. The page shows .html and plays that file. Change .text here and re-run the synthesis - never edit one side alone. Avoid hyphens in .text: they split into two tokens and cause false failures.",
   "ask": {
     "text": "Yes, go ahead. But this answer is only good for 90 seconds, because it rests on a stock figure that moves. After that, treat it as expired.",
     "html": "<span class=\"verdict go\">Yes — go ahead.</span> But this answer is only good for 90 seconds, because it rests on a stock figure that moves. After that, treat it as expired.",
